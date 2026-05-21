@@ -1,57 +1,97 @@
-﻿// AmazonForest.cs - v1: Sem Flyweight (problema de memória)
+﻿// AmazonForest.cs - v2: Flyweight introduzido — espécie como objeto compartilhado
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-// Cada árvore carrega TODOS os dados — incluindo os repetidos por espécie
-class Arvore
+// ── FLYWEIGHT: estado intrínseco (imutável, compartilhado) ──────────────────
+class EspecieArvore
 {
-    // Estado intrínseco (poderia ser compartilhado, mas não é aqui)
-    private string especie;
-    private string cor;
-    private string textura;
-    private byte[] imagemCasca;     // ~500KB por árvore!
-    private byte[] imagemFolhas;    // ~300KB por árvore!
+    public string Nome { get; }
+    public string Cor { get; }
+    public string Textura { get; }
+    private readonly byte[] imagemCasca;    // ~500KB — compartilhada entre todas da espécie
+    private readonly byte[] imagemFolhas;   // ~300KB — idem
 
-    // Estado extrínseco (único por árvore)
-    private double latitude;
-    private double longitude;
-    private double altura;
-    private int idade;
-
-    public Arvore(string especie, string cor, string textura,
-                  double latitude, double longitude, double altura, int idade)
+    public EspecieArvore(string nome, string cor, string textura)
     {
-        this.especie = especie;
-        this.cor = cor;
-        this.textura = textura;
-        this.imagemCasca = new byte[500_000]; // simulando 500KB
-        this.imagemFolhas = new byte[300_000]; // simulando 300KB
-        this.latitude = latitude;
-        this.longitude = longitude;
-        this.altura = altura;
-        this.idade = idade;
+        Nome = nome;
+        Cor = cor;
+        Textura = textura;
+        imagemCasca = new byte[500_000];
+        imagemFolhas = new byte[300_000];
+        Console.WriteLine($"  [Flyweight criado] Espécie: {nome,-14} (+800KB na memória)");
     }
 
-    public long GetMemoriaBytes() =>
+    public long GetMemoriaIntrinseca() =>
         imagemCasca.Length + imagemFolhas.Length
-        + especie.Length + cor.Length + textura.Length
-        + sizeof(double) * 3 + sizeof(int);
+        + Nome.Length + Cor.Length + Textura.Length;
 
-    public override string ToString() =>
-        $"[{especie}] lat={latitude:F4} lon={longitude:F4} alt={altura:F1}m idade={idade}anos";
+    public void Desenhar(double lat, double lon, double alt, int idade)
+    {
+        // Em produção: usa imagemCasca/Folhas para renderizar na posição
+    }
 }
 
-class FlorestaSemFlyweight
+// ── FLYWEIGHT FACTORY ────────────────────────────────────────────────────────
+static class EspecieFactory
 {
-    private List<Arvore> arvores = new();
+    private static readonly Dictionary<string, EspecieArvore> _pool = new();
+
+    public static EspecieArvore GetEspecie(string nome, string cor, string textura)
+    {
+        if (!_pool.ContainsKey(nome))
+            _pool[nome] = new EspecieArvore(nome, cor, textura);
+
+        return _pool[nome]; // retorna instância compartilhada
+    }
+
+    public static int TotalEspeciesNaMemoria() => _pool.Count;
+    public static long MemoriaDoPool() => _pool.Values.Sum(e => e.GetMemoriaIntrinseca());
+}
+
+// ── CONTEXTO: estado extrínseco (único por árvore, leve) ───────────────────
+class ArvoreContexto
+{
+    private readonly EspecieArvore _especie; // referência 
+    private readonly double _latitude;
+    private readonly double _longitude;
+    private readonly double _altura;
+    private readonly int _idade;
+
+    public ArvoreContexto(EspecieArvore especie, double lat, double lon, double alt, int idade)
+    {
+        _especie = especie;
+        _latitude = lat;
+        _longitude = lon;
+        _altura = alt;
+        _idade = idade;
+    }
+
+    // Memória real deste objeto: só os dados extrínsecos + 1 referência (8 bytes)
+    public long GetMemoriaBytes() =>
+        sizeof(double) * 3 + sizeof(int) + IntPtr.Size;
+
+    public void Desenhar() => _especie.Desenhar(_latitude, _longitude, _altura, _idade);
+
+    public override string ToString() =>
+        $"[{_especie.Nome}] lat={_latitude:F4} lon={_longitude:F4} alt={_altura:F1}m";
+}
+
+// ── FLORESTA COM FLYWEIGHT ────────────────────────────────────────────────────
+class FlorestaComFlyweight
+{
+    private readonly List<ArvoreContexto> _arvores = new();
 
     public void PlantarArvore(string especie, string cor, string textura,
                                double lat, double lon, double alt, int idade)
-        => arvores.Add(new Arvore(especie, cor, textura, lat, lon, alt, idade));
+    {
+        var esp = EspecieFactory.GetEspecie(especie, cor, textura);
+        _arvores.Add(new ArvoreContexto(esp, lat, lon, alt, idade));
+    }
 
-    public long CalcularMemoriaTotal() => arvores.Sum(a => a.GetMemoriaBytes());
-    public int TotalArvores() => arvores.Count;
+    public long CalcularMemoriaContextos() => _arvores.Sum(a => a.GetMemoriaBytes());
+    public long CalcularMemoriaTotal() => CalcularMemoriaContextos() + EspecieFactory.MemoriaDoPool();
+    public int TotalArvores() => _arvores.Count;
 }
 
 class AmazonForest
@@ -63,9 +103,10 @@ class AmazonForest
     {
         int totalArvores = 100_000;
 
-        Console.WriteLine("=== COMMIT 1: Sem Flyweight ===\n");
+        Console.WriteLine("=== COMMIT 2: Com Flyweight ===\n");
+        Console.WriteLine("Espécies sendo registradas no pool:");
 
-        var floresta = new FlorestaSemFlyweight();
+        var floresta = new FlorestaComFlyweight();
 
         for (int i = 0; i < totalArvores; i++)
         {
@@ -79,12 +120,12 @@ class AmazonForest
             );
         }
 
-        long memoriaBytes = floresta.CalcularMemoriaTotal();
-        Console.WriteLine($"Árvores plantadas : {floresta.TotalArvores():N0}");
-        Console.WriteLine($"Memória total     : {memoriaBytes:N0} bytes");
-        Console.WriteLine($"                  = {memoriaBytes / 1_000_000.0:F2} MB");
-        Console.WriteLine($"Média por árvore  : {(double)memoriaBytes / floresta.TotalArvores():F0} bytes");
-        Console.WriteLine("\n⚠️  Problema: cada árvore duplica imagens de casca e folhas!");
-        Console.WriteLine("   Mesmo sendo da mesma espécie, nada é compartilhado.");
+        Console.WriteLine($"\nÁrvores plantadas        : {floresta.TotalArvores():N0}");
+        Console.WriteLine($"Espécies no pool         : {EspecieFactory.TotalEspeciesNaMemoria()}");
+        Console.WriteLine($"Memória do pool          : {EspecieFactory.MemoriaDoPool():N0} bytes");
+        Console.WriteLine($"Memória dos contextos    : {floresta.CalcularMemoriaContextos():N0} bytes");
+        Console.WriteLine($"Memória total            : {floresta.CalcularMemoriaTotal():N0} bytes");
+        Console.WriteLine($"                         = {floresta.CalcularMemoriaTotal() / 1_000_000.0:F2} MB");
+        Console.WriteLine($"\n✅ Apenas {EspecieFactory.TotalEspeciesNaMemoria()} objetos pesados na memória, não {totalArvores:N0}!");
     }
 }
