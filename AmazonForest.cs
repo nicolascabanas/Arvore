@@ -1,10 +1,6 @@
-﻿// AmazonForest.cs - v3: Comparação lado a lado dos dois cenários
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-
-
-//  FLYWEIGHT — estado intrínseco
 
 class EspecieArvore
 {
@@ -19,8 +15,8 @@ class EspecieArvore
         Nome         = nome;
         Cor          = cor;
         Textura      = textura;
-        imagemCasca  = new byte[500_000];
-        imagemFolhas = new byte[300_000];
+        imagemCasca  = new byte[500000];
+        imagemFolhas = new byte[300000];
     }
 
     public long GetMemoriaIntrinseca() =>
@@ -29,7 +25,7 @@ class EspecieArvore
 
 static class EspecieFactory
 {
-    private static readonly Dictionary<string, EspecieArvore> _pool = new();
+    private static readonly Dictionary<string, EspecieArvore> _pool = new Dictionary<string, EspecieArvore>();
 
     public static EspecieArvore GetEspecie(string nome, string cor, string textura)
     {
@@ -38,37 +34,11 @@ static class EspecieFactory
         return _pool[nome];
     }
 
-    public static void Reset() => _pool.Clear();
-    public static int Count   => _pool.Count;
+    public static void Reset()     => _pool.Clear();
+    public static int Count        => _pool.Count;
     public static long MemoriaPool => _pool.Values.Sum(e => e.GetMemoriaIntrinseca());
 }
 
-
-//  CENÁRIO A — sem Flyweight
-
-class ArvoreSemFlyweight
-{
-    private readonly string especie, cor, textura;
-    private readonly byte[] imagemCasca  = new byte[500_000];
-    private readonly byte[] imagemFolhas = new byte[300_000];
-    private readonly double lat, lon, alt;
-    private readonly int idade;
-
-    public ArvoreSemFlyweight(string especie, string cor, string textura,
-                               double lat, double lon, double alt, int idade)
-    {
-        this.especie = especie; this.cor = cor; this.textura = textura;
-        this.lat = lat; this.lon = lon; this.alt = alt; this.idade = idade;
-    }
-
-    public long GetMemoriaBytes() =>
-        imagemCasca.Length + imagemFolhas.Length
-        + especie.Length + cor.Length + textura.Length
-        + sizeof(double) * 3 + sizeof(int);
-}
-
-
-//  CENÁRIO B — com Flyweight
 class ArvoreContexto
 {
     private readonly EspecieArvore _especie;
@@ -84,76 +54,92 @@ class ArvoreContexto
     public long GetMemoriaBytes() => sizeof(double) * 3 + sizeof(int) + IntPtr.Size;
 }
 
+static class Simulador
+{
+    static readonly string[] Especies = { "Castanheira", "Seringueira", "Acaizeiro", "Mogno", "Andiroba" };
+
+    // Calcula memoria sem Flyweight de forma ANALITICA (sem alocar objetos reais)
+    // Evita travar o processo com 1M x 800KB na heap
+    static long CalcularMemoriaSemFlyweight(int totalArvores)
+    {
+        // cada arvore teria: 500000 + 300000 bytes de imagem + strings + doubles + int
+        // strings: especie (~10) + cor (~15) + textura (~17) = ~42 bytes (media)
+        long bytesPorArvore = 500000 + 300000 + 42 + sizeof(double) * 3 + sizeof(int);
+        return bytesPorArvore * totalArvores;
+    }
+
+    public static (long semFly, long comFly, int numEspecies) Simular(int totalArvores)
+    {
+        long memSem = CalcularMemoriaSemFlyweight(totalArvores);
+
+        EspecieFactory.Reset();
+        var rng = new Random(42);
+        long memContextos = 0;
+
+        for (int i = 0; i < totalArvores; i++)
+        {
+            string esp = Especies[i % Especies.Length];
+            var especie = EspecieFactory.GetEspecie(esp, "verde-" + esp, "rugosa-" + esp);
+            var ctx = new ArvoreContexto(
+                especie,
+                -3.0  + rng.NextDouble() * 6,
+                -73.0 + rng.NextDouble() * 20,
+                5     + rng.NextDouble() * 40,
+                rng.Next(1, 200));
+            memContextos += ctx.GetMemoriaBytes();
+        }
+
+        long memCom = memContextos + EspecieFactory.MemoriaPool;
+        return (memSem, memCom, EspecieFactory.Count);
+    }
+}
 
 class AmazonForest
 {
-    static readonly string[] Especies = { "Castanheira", "Seringueira", "Açaizeiro", "Mogno", "Andiroba" };
-    static readonly Random rng = new();
-
     static void Main()
     {
-        int totalArvores = 100_000;
+        int[] escalas = { 1000, 10000, 100000, 1000000 };
 
-        Console.WriteLine("╔══════════════════════════════════════════════════╗");
-        Console.WriteLine("║   Floresta Amazônica — Análise de Memória        ║");
-        Console.WriteLine("╚══════════════════════════════════════════════════╝\n");
+        Console.WriteLine("{0,-12} {1,-20} {2,-20} {3,-15} {4}",
+            "Arvores", "Sem Flyweight", "Com Flyweight", "Economia", "Reducao");
+        Console.WriteLine(new string('-', 75));
 
-        // Cenário A: sem Flyweight 
-        var semFly = new List<ArvoreSemFlyweight>();
-        for (int i = 0; i < totalArvores; i++)
+        foreach (int n in escalas)
         {
-            string esp = Especies[i % Especies.Length];
-            semFly.Add(new ArvoreSemFlyweight(
-                esp, $"verde-{esp}", $"rugosa-{esp}",
-                -3.0 + rng.NextDouble() * 6,
-                -73.0 + rng.NextDouble() * 20,
-                5 + rng.NextDouble() * 40,
-                rng.Next(1, 200)));
-        }
-        long memSem = semFly.Sum(a => a.GetMemoriaBytes());
+            var (semFly, comFly, _) = Simulador.Simular(n);
+            double economia = (semFly - comFly) / 1000000.0;
+            double reducao  = (1.0 - (double)comFly / semFly) * 100;
 
-        //  Cenário B: com Flyweight 
+            Console.WriteLine("{0,-12} {1,-20} {2,-20} {3,-15} {4}",
+                n,
+                (semFly / 1000000.0).ToString("F2") + " MB",
+                (comFly / 1000000.0).ToString("F2") + " MB",
+                economia.ToString("F2") + " MB",
+                reducao.ToString("F1") + "%");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(new string('=', 65));
+        Console.WriteLine("  DETALHAMENTO - 1.000.000 de arvores");
+        Console.WriteLine(new string('=', 65));
+
         EspecieFactory.Reset();
-        var comFly = new List<ArvoreContexto>();
-        for (int i = 0; i < totalArvores; i++)
-        {
-            string esp = Especies[i % Especies.Length];
-            var especie = EspecieFactory.GetEspecie(esp, $"verde-{esp}", $"rugosa-{esp}");
-            comFly.Add(new ArvoreContexto(
-                especie,
-                -3.0 + rng.NextDouble() * 6,
-                -73.0 + rng.NextDouble() * 20,
-                5 + rng.NextDouble() * 40,
-                rng.Next(1, 200)));
-        }
-        long memContextos = comFly.Sum(a => a.GetMemoriaBytes());
-        long memPool      = EspecieFactory.MemoriaPool;
-        long memCom       = memContextos + memPool;
+        var (semD, comD, numEsp) = Simulador.Simular(1000000);
 
-        // Relatório 
-        Console.WriteLine($"Total de árvores : {totalArvores:N0}");
-        Console.WriteLine($"Total de espécies: {EspecieFactory.Count}\n");
+        Console.WriteLine("\n  Especies no pool Flyweight : " + numEsp);
+        Console.WriteLine("  Memoria do pool (especies) : " + (EspecieFactory.MemoriaPool / 1000000.0).ToString("F2") + " MB");
+        Console.WriteLine("  Memoria dos contextos      : " + ((comD - EspecieFactory.MemoriaPool) / 1000000.0).ToString("F2") + " MB");
+        Console.WriteLine("\n  Sem Flyweight -> " + (semD / 1000000.0).ToString("F2") + " MB");
+        Console.WriteLine("  Com Flyweight -> " + (comD  / 1000000.0).ToString("F2") + " MB");
+        Console.WriteLine("\n  Economia      : " + ((semD - comD) / 1000000.0).ToString("F2") + " MB");
+        Console.WriteLine("  Reducao       : " + ((1.0 - (double)comD / semD) * 100).ToString("F1") + "%");
 
-        Console.WriteLine("┌─────────────────────────────────────────────────┐");
-        Console.WriteLine("│  CENÁRIO A — Sem Flyweight                      │");
-        Console.WriteLine("├─────────────────────────────────────────────────┤");
-        Console.WriteLine($"│  Memória total : {memSem,12:N0} bytes              │");
-        Console.WriteLine($"│               = {memSem / 1_000_000.0,10:F2} MB                 │");
-        Console.WriteLine($"│  Por árvore   : {(double)memSem / totalArvores,10:F0} bytes               │");
-        Console.WriteLine("└─────────────────────────────────────────────────┘\n");
-
-        Console.WriteLine("┌─────────────────────────────────────────────────┐");
-        Console.WriteLine("│  CENÁRIO B — Com Flyweight                      │");
-        Console.WriteLine("├─────────────────────────────────────────────────┤");
-        Console.WriteLine($"│  Pool de espécies : {memPool,10:N0} bytes           │");
-        Console.WriteLine($"│  Contextos        : {memContextos,10:N0} bytes           │");
-        Console.WriteLine($"│  Total            : {memCom,10:N0} bytes           │");
-        Console.WriteLine($"│                 = {memCom / 1_000_000.0,10:F2} MB                │");
-        Console.WriteLine($"│  Por árvore     : {(double)memCom / totalArvores,10:F0} bytes             │");
-        Console.WriteLine("└─────────────────────────────────────────────────┘\n");
-
-        double reducao = (1.0 - (double)memCom / memSem) * 100;
-        Console.WriteLine($"🌿 Redução de memória com Flyweight: {reducao:F1}%");
-        Console.WriteLine($"🌿 Economia absoluta               : {(memSem - memCom) / 1_000_000.0:F2} MB");
+        Console.WriteLine();
+        Console.WriteLine(new string('=', 65));
+        Console.WriteLine("  POR QUE FUNCIONA?");
+        Console.WriteLine(new string('=', 65));
+        Console.WriteLine("  Sem Flyweight : 800 KB x N arvores");
+        Console.WriteLine("  Com Flyweight : 800 KB x 5 especies  +  36 B x N arvores");
+        Console.WriteLine(new string('=', 65));
     }
 }

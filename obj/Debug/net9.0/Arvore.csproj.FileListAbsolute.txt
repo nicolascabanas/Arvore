@@ -1,0 +1,15 @@
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\bin\Debug\net9.0\Arvore.exe
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\bin\Debug\net9.0\Arvore.deps.json
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\bin\Debug\net9.0\Arvore.runtimeconfig.json
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\bin\Debug\net9.0\Arvore.dll
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\bin\Debug\net9.0\Arvore.pdb
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.AssemblyInfoInputs.cache
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.AssemblyInfo.cs
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.csproj.CoreCompileInputs.cache
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.sourcelink.json
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.dll
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\refint\Arvore.dll
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.pdb
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\Arvore.genruntimeconfig.cache
+C:\Users\Pedro\OneDrive\Documentos\Faculdade\ProjOO\Arvore\obj\Debug\net9.0\ref\Arvore.dll
